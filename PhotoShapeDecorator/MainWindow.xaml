@@ -10,112 +10,96 @@
         WindowStartupLocation="CenterScreen">
     <Grid x:Name="RootGrid">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="150"/>
             <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="200"/>
         </Grid.ColumnDefinitions>
 
-        <!-- 左側: シェイプエリア -->
-        <Border Grid.Column="0" Background="WhiteSmoke" Margin="10">
+        <!-- シェイプエリア -->
+        <Border Grid.Column="0" Background="LightGray" Padding="10">
             <StackPanel>
-                <TextBlock Text="シェイプエリア" 
-                          VerticalAlignment="Top" 
-                          HorizontalAlignment="Center"
-                          Margin="10" FontWeight="Bold"/>
+                <TextBlock Text="シェイプ" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
 
-                <!-- シェイプを配置するキャンバス -->
-                <Canvas x:Name="ShapeCanvas" Height="400" Background="White" Margin="10">
-                    <!-- 円形シェイプ -->
-                    <Ellipse x:Name="CircleShape" 
-                            Width="60" 
-                            Height="60" 
-                            Fill="Red" 
-                            Stroke="DarkRed" 
-                            StrokeThickness="2"
-                            Canvas.Left="70"
-                            Canvas.Top="30"
-                            Cursor="Hand">
-                        <!-- DragSource に Drop イベントを設定 -->
-                        <ig:DragDropManager.DragSource>
-                            <ig:DragSource IsDraggable="True" 
-                                          DragChannels="ShapeChannel"
-                                          Drop="DragSource_Drop"/>
-                        </ig:DragDropManager.DragSource>
-                    </Ellipse>
-                </Canvas>
+                <Ellipse x:Name="CircleShape" 
+                         Width="50" Height="50" 
+                         Fill="Red" 
+                         Stroke="DarkRed" 
+                         StrokeThickness="3"
+                         Cursor="Hand">
+                    <ig:DragDropManager.DragSource>
+                        <ig:DragSource IsDraggable="True" 
+                                     DragChannels="ShapeChannel"
+                                     Drop="DragSource_Drop"/>
+                    </ig:DragDropManager.DragSource>
+                </Ellipse>
             </StackPanel>
         </Border>
 
-        <!-- 中央: 写真エリア -->
-        <Border Grid.Column="1" Background="White" Margin="10" BorderBrush="DodgerBlue" BorderThickness="2">
-            <Grid>
-                <TextBlock Text="写真エリア" 
-                          VerticalAlignment="Top" 
-                          HorizontalAlignment="Center"
-                          Margin="10" FontWeight="Bold" Panel.ZIndex="100"/>
-
-                <!-- 背景画像表示用 -->
-                <Canvas x:Name="PhotoCanvas" Background="Gray">
-                    <Image x:Name="BackgroundImage" 
-                          Stretch="Uniform"
-                          Canvas.Left="0" 
-                          Canvas.Top="0"/>
-
-                    <!-- DropTarget（Drop イベントは不要） -->
-                    <ig:DragDropManager.DropTarget>
-                        <ig:DropTarget IsDropTarget="True" DropChannels="ShapeChannel"/>
-                    </ig:DragDropManager.DropTarget>
-                </Canvas>
-            </Grid>
+        <!-- 写真エリア（中央） -->
+        <Border Grid.Column="1"
+        BorderBrush="DarkGray"
+        BorderThickness="2"
+        Background="White"
+        Margin="10">
+            <!-- HorizontalAlignment/VerticalAlignmentをStretchに設定 -->
+            <Canvas x:Name="PhotoCanvas" 
+        Background="Transparent"
+        ClipToBounds="True">
+                <Image x:Name="BackgroundImage"
+           Width="{Binding ActualWidth, ElementName=PhotoCanvas}"
+           Height="{Binding ActualHeight, ElementName=PhotoCanvas}"
+           Stretch="Uniform"
+           IsHitTestVisible="False"/>
+                <ig:DragDropManager.DropTarget>
+                    <ig:DropTarget IsDropTarget="True" DropChannels="ShapeChannel"/>
+                </ig:DragDropManager.DropTarget>
+            </Canvas>
         </Border>
 
-        <!-- 右側: コントロールエリア -->
-        <StackPanel Grid.Column="2" Margin="10" VerticalAlignment="Top">
-            <!-- ゴミ箱エリア -->
-            <Border x:Name="TrashArea" Background="LightCoral" Height="150" Margin="0,0,0,20">
-                <StackPanel Orientation="Vertical" 
-                VerticalAlignment="Center" 
-                HorizontalAlignment="Center">
-                    <TextBlock Text="🗑️" FontSize="40" HorizontalAlignment="Center"/>
-                    <TextBlock Text="ゴミ箱"
-                   HorizontalAlignment="Center"
-                   FontWeight="Bold" FontSize="16" Margin="0,5,0,0"/>
-                    <TextBlock Text="（ドロップして削除）"
-                   HorizontalAlignment="Center"
-                   FontSize="12" Margin="0,5,0,0"/>
-                </StackPanel>
-                <!-- DropTarget を追加（Drop プロパティなし） -->
-                <ig:DragDropManager.DropTarget>
-                    <ig:DropTarget IsDropTarget="True" 
-                       DropChannels="ShapeChannel"/>
-                </ig:DragDropManager.DropTarget>
-            </Border>
+        <!-- コントロールエリア -->
+        <Border Grid.Column="2" Background="LightYellow" Padding="10">
+            <StackPanel>
+                <TextBlock Text="コントロール" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
 
-            <!-- 背景を選ぶボタン -->
-            <Button x:Name="SelectBackgroundButton" 
-                   Content="背景を選ぶ" 
-                   Height="50" 
-                   Margin="0,0,0,10"
-                   Background="DarkCyan" 
-                   Foreground="White"
-                   FontSize="16"
-                   Click="SelectBackgroundButton_Click"/>
+                <Button x:Name="SelectBackgroundButton" 
+                        Content="背景を選ぶ" 
+                        Click="SelectBackgroundButton_Click"
+                        Height="40" Margin="0,0,0,10"/>
 
-            <!-- 画像保存ボタン (将来実装) -->
-            <Button x:Name="SaveImageButton" 
-                   Content="画像保存" 
-                   Height="50"
-                   Background="ForestGreen" 
-                   Foreground="White"
-                   FontSize="16"
-                   Click="SaveImageButton_Click"
-                   IsEnabled="False"/>
-        </StackPanel>
+                <Button x:Name="SaveImageButton" 
+                        Content="画像保存" 
+                        Click="SaveImageButton_Click"
+                        Height="40" Margin="0,0,0,20"/>
 
-        <!-- ゴースト表示用の透明なオーバーレイCanvas（最前面に配置） -->
+                <!-- ゴミ箱エリア -->
+                <Border x:Name="TrashArea" 
+                        Background="LightCoral" 
+                        Height="150" 
+                        Margin="0,0,0,20">
+                    <StackPanel Orientation="Vertical" 
+                                VerticalAlignment="Center" 
+                                HorizontalAlignment="Center">
+                        <TextBlock Text="🗑️" FontSize="40" HorizontalAlignment="Center"/>
+                        <TextBlock Text="ゴミ箱"
+                                   HorizontalAlignment="Center"
+                                   FontWeight="Bold" FontSize="16" Margin="0,5,0,0"/>
+                        <TextBlock Text="（ドロップして削除）"
+                                   HorizontalAlignment="Center"
+                                   FontSize="12" Margin="0,5,0,0"/>
+                    </StackPanel>
+                    <ig:DragDropManager.DropTarget>
+                        <ig:DropTarget IsDropTarget="True" 
+                                     DropChannels="ShapeChannel"/>
+                    </ig:DragDropManager.DropTarget>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- ゴースト表示用オーバーレイCanvas -->
         <Canvas x:Name="GhostOverlay" 
-            IsHitTestVisible="False" 
-            Background="Transparent"
-            Panel.ZIndex="10000"/>
+                Grid.ColumnSpan="3"
+                IsHitTestVisible="False" 
+                Background="Transparent"
+                Panel.ZIndex="10000"/>
     </Grid>
 </Window>

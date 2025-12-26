@@ -1,157 +1,157 @@
-﻿using System;
+﻿using Infragistics.DragDrop;
+using Microsoft.Win32;
+using System;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
-using Microsoft.Win32;
-using Infragistics.DragDrop;
 
 namespace PhotoShapeDecorator
 {
     public partial class MainWindow : Window
     {
-        // ゴースト要素を保持するフィールド
+        // ============================================
+        // 定数定義
+        // ============================================
+        private const double SHAPE_SIZE = 50;
+        private const double SHAPE_STROKE_THICKNESS = 3;
+        private const double GHOST_OPACITY = 0.6;
+
+        // ============================================
+        // フィールド
+        // ============================================
         private Ellipse? ghostCircle;
-        // ドラッグ中かどうかを示すフラグ
         private bool isDragging = false;
 
+        // ============================================
+        // コンストラクタ
+        // ============================================
         public MainWindow()
         {
             InitializeComponent();
-
-            // PhotoCanvas のサイズを親 Border に合わせる
-            this.Loaded += MainWindow_Loaded;
-
-            // Window の MouseMove イベントを登録（Canvas ではなく Window）
             this.MouseMove += Window_MouseMove;
         }
 
-        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        // ============================================
+        // 背景画像選択
+        // ============================================
+        private void SelectBackgroundButton_Click(object sender, RoutedEventArgs e)
         {
-            // Canvas のサイズを Border に合わせる
-            var parent = PhotoCanvas.Parent as FrameworkElement;
-            if (parent != null)
+            OpenFileDialog openFileDialog = new OpenFileDialog
             {
-                PhotoCanvas.Width = parent.ActualWidth;
-                PhotoCanvas.Height = parent.ActualHeight;
+                Filter = "画像ファイル|*.jpg;*.jpeg;*.png;*.bmp;*.gif",
+                Title = "背景画像を選択"
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                BitmapImage bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.UriSource = new Uri(openFileDialog.FileName);
+                bitmap.EndInit();
+                BackgroundImage.Source = bitmap;
             }
         }
 
-        // Window の MouseMove イベントハンドラ
-        private void Window_MouseMove(object sender, MouseEventArgs e)
+        /// <summary>
+        /// 画像保存ボタンのクリックイベントハンドラ
+        /// </summary>
+        private void SaveImageButton_Click(object sender, RoutedEventArgs e)
         {
-            if (isDragging && ghostCircle != null)
+            SaveFileDialog saveFileDialog = new SaveFileDialog
             {
-                // GhostOverlay 基準で座標を取得
-                Point currentPosition = e.GetPosition(GhostOverlay);
+                Filter = "PNG画像|*.png|JPEG画像|*.jpg|BMP画像|*.bmp",
+                Title = "画像を保存",
+                FileName = $"PhotoShape_{DateTime.Now:yyyyMMdd_HHmmss}"
+            };
 
-                // ゴースト要素を移動（Canvas座標系なので正常に動作）
-                Canvas.SetLeft(ghostCircle, currentPosition.X - ghostCircle.Width / 2);
-                Canvas.SetTop(ghostCircle, currentPosition.Y - ghostCircle.Height / 2);
+            if (saveFileDialog.ShowDialog() == true)
+            {
+                // PhotoCanvasのActualWidth/ActualHeightを使用
+                RenderTargetBitmap renderBitmap = new RenderTargetBitmap(
+                    (int)PhotoCanvas.ActualWidth,
+                    (int)PhotoCanvas.ActualHeight,
+                    96d, 96d, PixelFormats.Pbgra32);
+
+                // レイアウトを更新してから描画
+                PhotoCanvas.Measure(new Size(PhotoCanvas.ActualWidth, PhotoCanvas.ActualHeight));
+                PhotoCanvas.Arrange(new Rect(new Size(PhotoCanvas.ActualWidth, PhotoCanvas.ActualHeight)));
+                PhotoCanvas.UpdateLayout();
+
+                renderBitmap.Render(PhotoCanvas);
+
+                BitmapEncoder encoder;
+                string extension = System.IO.Path.GetExtension(saveFileDialog.FileName).ToLower();
+
+                switch (extension)
+                {
+                    case ".jpg":
+                    case ".jpeg":
+                        JpegBitmapEncoder jpegEncoder = new JpegBitmapEncoder();
+                        jpegEncoder.QualityLevel = 95;
+                        encoder = jpegEncoder;
+                        break;
+                    case ".bmp":
+                        encoder = new BmpBitmapEncoder();
+                        break;
+                    default:
+                        encoder = new PngBitmapEncoder();
+                        break;
+                }
+
+                encoder.Frames.Add(BitmapFrame.Create(renderBitmap));
+
+                using (var fileStream = new System.IO.FileStream(saveFileDialog.FileName, System.IO.FileMode.Create))
+                {
+                    encoder.Save(fileStream);
+                }
+
+                MessageBox.Show("画像を保存しました。", "保存完了", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
-        // DragSource の Drop イベントハンドラ
+        // ============================================
+        // ドラッグ&ドロップイベントハンドラ
+        // ============================================
+
         private void DragSource_Drop(object sender, DropEventArgs e)
         {
             if (e.DragSource is Ellipse sourceEllipse)
             {
-                // ドロップ位置を取得
                 Point dropPosition = e.GetPosition(PhotoCanvas);
-
-                // 新しい円を作成
-                Ellipse newCircle = new Ellipse
-                {
-                    Width = sourceEllipse.Width,
-                    Height = sourceEllipse.Height,
-                    Fill = sourceEllipse.Fill,
-                    Stroke = sourceEllipse.Stroke,
-                    StrokeThickness = sourceEllipse.StrokeThickness,
-                    Cursor = System.Windows.Input.Cursors.Hand
-                };
-
-                // ドロップ位置に配置（中心位置を調整）
-                Canvas.SetLeft(newCircle, dropPosition.X - newCircle.Width / 2);
-                Canvas.SetTop(newCircle, dropPosition.Y - newCircle.Height / 2);
-
-                // 新しい円にドラッグ機能を追加
-                var dragSource = new DragSource
-                {
-                    IsDraggable = true,
-                    DragChannels = new ObservableCollection<string> { "ShapeChannel" }
-                };
-                dragSource.DragStart += PhotoCircle_DragStart;
-                dragSource.Drop += PhotoCircle_Drop;
-                dragSource.DragCancel += PhotoCircle_DragCancel;
-                DragDropManager.SetDragSource(newCircle, dragSource);
-
-                // 写真エリアに追加
-                PhotoCanvas.Children.Add(newCircle);
+                CreatePhotoCircle(sourceEllipse, dropPosition);
             }
         }
 
-        // 写真エリア内の円の DragStart イベントハンドラ
         private void PhotoCircle_DragStart(object? sender, DragDropStartEventArgs e)
         {
             if (e.DragSource is Ellipse draggedCircle)
             {
-                isDragging = true;
-
                 double currentLeft = Canvas.GetLeft(draggedCircle);
                 double currentTop = Canvas.GetTop(draggedCircle);
 
-                Point canvasTopLeft = PhotoCanvas.TransformToAncestor(RootGrid).Transform(new Point(0, 0));
-
                 draggedCircle.Visibility = Visibility.Hidden;
+                isDragging = true;
 
-                ghostCircle = new Ellipse
-                {
-                    Width = draggedCircle.Width,
-                    Height = draggedCircle.Height,
-                    Fill = draggedCircle.Fill,
-                    Stroke = draggedCircle.Stroke,
-                    StrokeThickness = draggedCircle.StrokeThickness,
-                    Opacity = 0.6,
-                    IsHitTestVisible = false
-                };
-
-                GhostOverlay.Children.Add(ghostCircle);
-
-                Canvas.SetLeft(ghostCircle, canvasTopLeft.X + currentLeft);
-                Canvas.SetTop(ghostCircle, canvasTopLeft.Y + currentTop);
+                CreateGhostElement(draggedCircle, currentLeft, currentTop);
             }
         }
 
-        // 配置済み円の Drop イベントハンドラ
         private void PhotoCircle_Drop(object? sender, DropEventArgs e)
         {
             if (e.DragSource is Ellipse draggedCircle)
             {
-                // ドラッグ中フラグを OFF
-                isDragging = false;
+                CleanupGhostElement();
 
-                // ゴースト要素を削除（GhostOverlayから）
-                if (ghostCircle != null)
-                {
-                    GhostOverlay.Children.Remove(ghostCircle);
-                    ghostCircle = null;
-                }
-
-                // ドロップ位置を取得（Window 基準）
                 Point dropPosition = e.GetPosition(this);
 
-                // ゴミ箱エリアの位置を取得
-                Point trashPosition = TrashArea.TransformToAncestor(this).Transform(new Point(0, 0));
-                Rect trashRect = new Rect(trashPosition, new Size(TrashArea.ActualWidth, TrashArea.ActualHeight));
-
-                // ドロップ位置がゴミ箱エリア内かチェック
-                if (trashRect.Contains(dropPosition))
+                if (IsDroppedOnTrash(dropPosition))
                 {
-                    // ゴミ箱にドロップ → Canvas から削除
                     if (PhotoCanvas.Children.Contains(draggedCircle))
                     {
                         PhotoCanvas.Children.Remove(draggedCircle);
@@ -159,135 +159,109 @@ namespace PhotoShapeDecorator
                 }
                 else
                 {
-                    // 写真エリア内にドロップ → 位置を更新
                     Point canvasPosition = e.GetPosition(PhotoCanvas);
                     Canvas.SetLeft(draggedCircle, canvasPosition.X - draggedCircle.Width / 2);
                     Canvas.SetTop(draggedCircle, canvasPosition.Y - draggedCircle.Height / 2);
-
-                    // 元の要素を再表示
                     draggedCircle.Visibility = Visibility.Visible;
                 }
             }
         }
 
-        // 写真エリア内の円の DragCancel イベントハンドラ
         private void PhotoCircle_DragCancel(object? sender, DragDropEventArgs e)
         {
             if (e.DragSource is Ellipse draggedCircle)
             {
-                // ドラッグ中フラグを OFF
-                isDragging = false;
-
-                // ゴースト要素を削除（GhostOverlayから）
-                if (ghostCircle != null)
-                {
-                    GhostOverlay.Children.Remove(ghostCircle);
-                    ghostCircle = null;
-                }
-
-                // 元の要素を再表示
+                CleanupGhostElement();
                 draggedCircle.Visibility = Visibility.Visible;
             }
         }
 
-        // 背景を選ぶボタンのクリックイベント
-        private void SelectBackgroundButton_Click(object sender, RoutedEventArgs e)
+        private void Window_MouseMove(object sender, MouseEventArgs e)
         {
-            OpenFileDialog openFileDialog = new OpenFileDialog
+            if (isDragging && ghostCircle != null)
             {
-                Title = "背景画像を選択",
-                Filter = "画像ファイル (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|すべてのファイル (*.*)|*.*"
-            };
-
-            if (openFileDialog.ShowDialog() == true)
-            {
-                try
-                {
-                    // 画像を読み込む
-                    BitmapImage bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(openFileDialog.FileName);
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
-
-                    // 背景画像を設定
-                    BackgroundImage.Source = bitmap;
-                    BackgroundImage.Width = PhotoCanvas.ActualWidth;
-                    BackgroundImage.Height = PhotoCanvas.ActualHeight;
-
-                    // 画像保存ボタンを有効化
-                    SaveImageButton.IsEnabled = true;
-
-                    MessageBox.Show("背景画像を設定しました！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"画像の読み込みに失敗しました: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                Point currentPosition = e.GetPosition(GhostOverlay);
+                Canvas.SetLeft(ghostCircle, currentPosition.X - ghostCircle.Width / 2);
+                Canvas.SetTop(ghostCircle, currentPosition.Y - ghostCircle.Height / 2);
             }
         }
 
-        // 画像保存ボタンのクリックイベント
-        private void SaveImageButton_Click(object sender, RoutedEventArgs e)
+        // ============================================
+        // ヘルパーメソッド
+        // ============================================
+
+        private Ellipse CreatePhotoCircle(Ellipse sourceCircle, Point position)
         {
-            try
+            Ellipse newCircle = new Ellipse
             {
-                // 保存ダイアログを表示
-                SaveFileDialog saveFileDialog = new SaveFileDialog
-                {
-                    Title = "画像を保存",
-                    Filter = "PNG画像 (*.png)|*.png|JPEG画像 (*.jpg)|*.jpg|BMP画像 (*.bmp)|*.bmp",
-                    DefaultExt = "png",
-                    FileName = $"PhotoShapeDecorator_{DateTime.Now:yyyyMMdd_HHmmss}"
-                };
+                Width = sourceCircle.Width,
+                Height = sourceCircle.Height,
+                Fill = sourceCircle.Fill,
+                Stroke = sourceCircle.Stroke,
+                StrokeThickness = sourceCircle.StrokeThickness,
+                Cursor = Cursors.Hand
+            };
 
-                if (saveFileDialog.ShowDialog() == true)
-                {
-                    // PhotoCanvas を画像としてレンダリング
-                    RenderTargetBitmap renderBitmap = new RenderTargetBitmap(
-                        (int)PhotoCanvas.ActualWidth,
-                        (int)PhotoCanvas.ActualHeight,
-                        96d, // DPI X
-                        96d, // DPI Y
-                        PixelFormats.Pbgra32);
+            Canvas.SetLeft(newCircle, position.X - newCircle.Width / 2);
+            Canvas.SetTop(newCircle, position.Y - newCircle.Height / 2);
 
-                    // Canvas をレンダリング
-                    renderBitmap.Render(PhotoCanvas);
+            PhotoCanvas.Children.Add(newCircle);
 
-                    // エンコーダーを選択（拡張子に応じて）
-                    BitmapEncoder encoder;
-                    string extension = System.IO.Path.GetExtension(saveFileDialog.FileName).ToLower();
+            AttachDragBehavior(newCircle);
 
-                    switch (extension)
-                    {
-                        case ".jpg":
-                        case ".jpeg":
-                            encoder = new JpegBitmapEncoder { QualityLevel = 95 };
-                            break;
-                        case ".bmp":
-                            encoder = new BmpBitmapEncoder();
-                            break;
-                        default: // .png
-                            encoder = new PngBitmapEncoder();
-                            break;
-                    }
+            return newCircle;
+        }
 
-                    // フレームを追加
-                    encoder.Frames.Add(BitmapFrame.Create(renderBitmap));
-
-                    // ファイルに保存
-                    using (FileStream fileStream = new FileStream(saveFileDialog.FileName, FileMode.Create))
-                    {
-                        encoder.Save(fileStream);
-                    }
-
-                    MessageBox.Show($"画像を保存しました！\n{saveFileDialog.FileName}", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-            catch (Exception ex)
+        private void AttachDragBehavior(Ellipse circle)
+        {
+            var dragSource = new DragSource
             {
-                MessageBox.Show($"画像の保存に失敗しました: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+                IsDraggable = true,
+                DragChannels = new ObservableCollection<string> { "ShapeChannel" }
+            };
+
+            dragSource.DragStart += PhotoCircle_DragStart;
+            dragSource.Drop += PhotoCircle_Drop;
+            dragSource.DragCancel += PhotoCircle_DragCancel;
+
+            DragDropManager.SetDragSource(circle, dragSource);
+        }
+
+        private void CreateGhostElement(Ellipse sourceCircle, double left, double top)
+        {
+            ghostCircle = new Ellipse
+            {
+                Width = sourceCircle.Width,
+                Height = sourceCircle.Height,
+                Fill = sourceCircle.Fill,
+                Stroke = sourceCircle.Stroke,
+                StrokeThickness = sourceCircle.StrokeThickness,
+                Opacity = GHOST_OPACITY,
+                IsHitTestVisible = false
+            };
+
+            GhostOverlay.Children.Add(ghostCircle);
+
+            Point canvasTopLeft = PhotoCanvas.TransformToAncestor(RootGrid).Transform(new Point(0, 0));
+            Canvas.SetLeft(ghostCircle, canvasTopLeft.X + left);
+            Canvas.SetTop(ghostCircle, canvasTopLeft.Y + top);
+        }
+
+        private void CleanupGhostElement()
+        {
+            if (ghostCircle != null)
+            {
+                GhostOverlay.Children.Remove(ghostCircle);
+                ghostCircle = null;
             }
+            isDragging = false;
+        }
+
+        private bool IsDroppedOnTrash(Point dropPosition)
+        {
+            Point trashPosition = TrashArea.TransformToAncestor(this).Transform(new Point(0, 0));
+            Rect trashRect = new Rect(trashPosition, new Size(TrashArea.ActualWidth, TrashArea.ActualHeight));
+            return trashRect.Contains(dropPosition);
         }
     }
 }
